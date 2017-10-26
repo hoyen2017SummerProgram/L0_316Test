@@ -73,7 +73,7 @@ typedef enum
 
 #define TP_MCLR_Pin GPIO_PIN_1
 #define TP_MCLR_GPIO_Port GPIOA
-#define TP_IRDY_Pin GPIO_PIN_2
+#define TP_IRDY_Pin GPIO_PIN_0
 #define TP_IRDY_GPIO_Port GPIOA
 
 

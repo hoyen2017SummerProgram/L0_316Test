@@ -18,6 +18,8 @@ Description      :  STM32M0 specific functions for IQS316 I2C Firmware library
 
 #define DEBUG_IQS316
 
+extern I2C_HandleTypeDef hi2c1;
+
 /*
 ********************************************************************************
 *		GLOBAL VARIABLES
@@ -39,91 +41,37 @@ struct tIQS316 IQS316;
 //*****************************************************************************
 void IQS316_Init(void)
 {
-    Comms_init();
-    //
-    // Add delay here to allow IQS316 to startup
-    // According to datasheet first comms is available roughly 16ms
-    // after MCLR is released
-    //
-    delay_msSysTick(15);
+  int result;
+  MCLR_HIGH();
+  //
+  // Add delay here to allow IQS316 to startup
+  // According to datasheet first comms is available roughly 16ms
+  // after MCLR is released
+  //
+  HAL_Delay(15);
 
-    // Place other functions responsible for hardware initialization here.
-
-    IQS316_Settings();
+  //
+  // Confirm comms are working correctly, and also that expected IQS316
+  // IC version is used.  Do this by reading back the Product and Version
+  // numbers from the IQS316
+  //
+//  result = HAL_I2C_IsDeviceReady(&hi2c1, TP_SLAVE_READ_ADDRESS, 5, 300);
+  IQS316_Settings();
 }
 
-//*****************************************************************************
-//
-//! I2C Initialise
-//!
-//! Initializes the I2C module on the PIC18F4550 
-//! Note that the SSPADD acts as a counter to determine the I2C frequency. A   
-//! smaller value will increase the frequency.
-//!
-//! \param None
-//!
-//! \return None
-//
-//*****************************************************************************
-void Comms_init()
-{
-  I2C_InitTypeDef  I2C_InitStructure;
 
-  HW_TP_LowLevel_Init();
-//  MCLR_HIGH();
-  GPIO_SetBits(MCLR_GPIO_PORT, MCLR_PIN);
-//  LED_On(LED3);
-
-  /* I2C configuration */
-  I2C_InitStructure.I2C_Mode = I2C_Mode_I2C;
-  I2C_InitStructure.I2C_AnalogFilter = I2C_AnalogFilter_Enable;
-  I2C_InitStructure.I2C_DigitalFilter = 0x00;
-  I2C_InitStructure.I2C_OwnAddress1 = 0x00;
-  I2C_InitStructure.I2C_Ack = I2C_Ack_Enable;
-  I2C_InitStructure.I2C_AcknowledgedAddress = I2C_AcknowledgedAddress_7bit;
-  I2C_InitStructure.I2C_Timing = TP_I2C_TIMING;
-
-  /* Apply sEE_I2C configuration after enabling it */
-  I2C_Init(TP_I2C, &I2C_InitStructure);
-
-  /* sEE_I2C Peripheral Enable */
-  I2C_Cmd(TP_I2C, ENABLE);
-}
-
-//*****************************************************************************
-//
-//! Configure the on-chip IQS316 settings
-//!
-//! This function is modified to suit the design requirements.  The basic
-//! procedure remains the same, namely to configure the channels used, followed
-//! by setting up the ATI parameters and executing the auto-ATI algorithm, then
-//! followed by configuring the thresholds, followed by all the other required
-//! settings such as Low-Power configuration, charging modes used etc.
-//!
-//! \param None
-//!
-//! \return None
-//
-//*****************************************************************************
 void IQS316_Settings(void)
 {
-    uint8_t ui8StartGroup, ui8CurrentGroup;
-    uint8_t ui8ProdNo, ui8VersionNo, i;
-    uint8_t ui8DataArray[20];
-    //
-    // Confirm comms are working correctly, and also that expected IQS316
-    // IC version is used.  Do this by reading back the Product and Version
-    // numbers from the IQS316
-    //
-  memset(ui8DataArray, 0x00, 20);
-    i = 0;
-    i = IQS316_ReadCurrentAddress(ui8DataArray,2);
- //   i = IQS316_Read(PROD_NUM, ui8DataArray, 2);
-    ui8ProdNo = ui8DataArray[0];
-    ui8VersionNo = ui8DataArray[1];
-    IQS316_End_Comms_Window();
-  
-    i = 50;
+  uint8_t ui8StartGroup, ui8CurrentGroup;
+  uint8_t ui8ProdNo, ui8VersionNo, i;
+  uint8_t ui8DataArray[20];
+  memset(ui8DataArray, 0x05, 20);
+  i = 0;
+//  i = IQS316_ReadCurrentAddress(ui8DataArray,2);
+  i = IQS316_Read(PROD_NUM, ui8DataArray, 2);
+  ui8ProdNo = ui8DataArray[0];
+  ui8VersionNo = ui8DataArray[1];
+  IQS316_End_Comms_Window();
 
 #ifdef DEBUG_IQS316
     if((ui8ProdNo != 27) || (ui8VersionNo != 1))
@@ -134,15 +82,15 @@ void IQS316_Settings(void)
         while(1);
     }
 #endif
-    //
-    // Acknowledge the reset by sending an ACK_RESET to the IQS316.  This will
-    // clear the SHOW_RESET bit in UI_FLAGS0 register.  From here on further, if
-    // this SHOW_RESET bit ever becomes set, we know an unexpected reset has
-    // occurred on the IQS316, and we should repeat the setup
-    //
-    ui8DataArray[0] = (ACK_RESET | LTN_DISABLE | WDT_DISABLE);
-    IQS316_Write(PROX_SETTINGS_2, ui8DataArray, 1);
-    IQS316_End_Comms_Window();
+  //
+  // Acknowledge the reset by sending an ACK_RESET to the IQS316.  This will
+  // clear the SHOW_RESET bit in UI_FLAGS0 register.  From here on further, if
+  // this SHOW_RESET bit ever becomes set, we know an unexpected reset has
+  // occurred on the IQS316, and we should repeat the setup
+  //
+  ui8DataArray[0] = (ACK_RESET | LTN_DISABLE | WDT_DISABLE);
+  IQS316_Write(PROX_SETTINGS_2, ui8DataArray, 1);
+  IQS316_End_Comms_Window();
 
 #ifdef DEBUG_IQS316
     IQS316_Read(UI_FLAGS0, ui8DataArray, 1);
@@ -156,195 +104,195 @@ void IQS316_Settings(void)
         while(1);
     }
 #endif
-    //
-    // IQS316 Application specific SETUP
-    // 1 - CHANNEL SETUP
-    //
-    ui8DataArray[0] = 0x03;         // CHAN_ACTIVE0
-    ui8DataArray[1] = 0x0F;         // CHAN_ACTIVE1
-    ui8DataArray[2] = 0x0F;         // CHAN_ACTIVE2
-    ui8DataArray[3] = 0x0F;         // CHAN_ACTIVE3
-    ui8DataArray[4] = 0x0F;         // CHAN_ACTIVE4
+  //
+  // IQS316 Application specific SETUP
+  // 1 - CHANNEL SETUP
+  //
+  ui8DataArray[0] = 0x03;         // CHAN_ACTIVE0
+  ui8DataArray[1] = 0x0F;         // CHAN_ACTIVE1
+  ui8DataArray[2] = 0x0F;         // CHAN_ACTIVE2
+  ui8DataArray[3] = 0x0F;         // CHAN_ACTIVE3
+  ui8DataArray[4] = 0x0F;         // CHAN_ACTIVE4
 
-    IQS316_Write(CHAN_ACTIVE0, ui8DataArray, 5);
+  IQS316_Write(CHAN_ACTIVE0, ui8DataArray, 5);
+  IQS316_End_Comms_Window();
+  //
+  // 2 - Setup ATI and thresholds (settings which must be sent in specific
+  // comms window - depending which group is active)
+  //
+  IQS316_Read(GROUP_NUM, ui8DataArray, 1);
+  ui8StartGroup = ui8DataArray[0];
+  //
+  // Enable skip conversions, so that IQS316 cycles through the the groups
+  // 0, 1, 2, 3, 4, 0, 1, ....   to allow configuring settings which must be
+  // setup while in a specific cycle.
+  //
+  ui8DataArray[0] = (SKIP_CONV | LTN_DISABLE | WDT_DISABLE);
+  IQS316_Write(PROX_SETTINGS_2, ui8DataArray, 1);
+  ui8CurrentGroup = ui8StartGroup;
+
+  do
+  {
+    switch(ui8CurrentGroup)
+    {
+      case 0:
+      {
+        // ATI C and ATI I settings
+        //
+        ui8DataArray[0] = 0x00;          // ATI_MULT1
+        ui8DataArray[1] = 0x00;          // ATI_MULT2
+        IQS316_Write(ATI_MULT1, ui8DataArray, 2);
+        //
+        // Set thresholds (in upper nibble of LTA)
+        // NOTE: this will overwrite the LTA value also, but auto-ATI
+        // will be done later, which will reseed the LTAs correctly
+        //
+        ui8DataArray[0] = PROX_THRES_8;  // LTA_04_HI
+        ui8DataArray[1] = 0x00;          // low byte - irrelevant
+        ui8DataArray[2] = PROX_THRES_8;  // LTA_15_HI
+        ui8DataArray[3] = 0x00;          // low byte - irrelevant
+        ui8DataArray[4] = PROX_THRES_8;  // LTA_26_HI
+        ui8DataArray[5] = 0x00;          // low byte - irrelevant
+        ui8DataArray[6] = PROX_THRES_8;  // LTA_37_HI
+        IQS316_Write(LTA_04_HI, ui8DataArray, 7);
+        break;
+      }
+      case 1:
+      {
+        ui8DataArray[0] = 0x00;          // ATI_MULT1
+        ui8DataArray[1] = 0x00;          // ATI_MULT2
+        IQS316_Write(ATI_MULT1, ui8DataArray, 2);
+
+        ui8DataArray[0] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_04_HI
+        ui8DataArray[1] = 0x00;          // low byte - irrelevant
+        ui8DataArray[2] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_15_HI
+        ui8DataArray[3] = 0x00;          // low byte - irrelevant
+        ui8DataArray[4] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_26_HI
+        ui8DataArray[5] = 0x00;          // low byte - irrelevant
+        ui8DataArray[6] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_37_HI
+        IQS316_Write(LTA_04_HI, ui8DataArray, 7);
+        break;
+      }
+      case 2:
+      {
+        ui8DataArray[0] = 0x00;          // ATI_MULT1
+        ui8DataArray[1] = 0x00;          // ATI_MULT2
+        IQS316_Write(ATI_MULT1, ui8DataArray, 2);
+
+        ui8DataArray[0] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_04_HI
+        ui8DataArray[1] = 0x00;          // low byte - irrelevant
+        ui8DataArray[2] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_15_HI
+        ui8DataArray[3] = 0x00;          // low byte - irrelevant
+        ui8DataArray[4] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_26_HI
+        ui8DataArray[5] = 0x00;          // low byte - irrelevant
+        ui8DataArray[6] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_37_HI
+        IQS316_Write(LTA_04_HI, ui8DataArray, 7);
+        break;
+      }
+      case 3:
+      {
+        ui8DataArray[0] = 0x00;          // ATI_MULT1
+        ui8DataArray[1] = 0x00;          // ATI_MULT2
+        IQS316_Write(ATI_MULT1, ui8DataArray, 2);
+
+        ui8DataArray[0] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_04_HI
+        ui8DataArray[1] = 0x00;          // low byte - irrelevant
+        ui8DataArray[2] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_15_HI
+        ui8DataArray[3] = 0x00;          // low byte - irrelevant
+        ui8DataArray[4] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_26_HI
+        ui8DataArray[5] = 0x00;          // low byte - irrelevant
+        ui8DataArray[6] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_37_HI
+        IQS316_Write(LTA_04_HI, ui8DataArray, 7);
+        break;
+      }
+      case 4:
+      {
+        ui8DataArray[0] = 0x00;          // ATI_MULT1
+        ui8DataArray[1] = 0x00;          // ATI_MULT2
+        IQS316_Write(ATI_MULT1, ui8DataArray, 2);
+
+        ui8DataArray[0] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_04_HI
+        ui8DataArray[1] = 0x00;          // low byte - irrelevant
+        ui8DataArray[2] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_15_HI
+        ui8DataArray[3] = 0x00;          // low byte - irrelevant
+        ui8DataArray[4] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_26_HI
+        ui8DataArray[5] = 0x00;          // low byte - irrelevant
+        ui8DataArray[6] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_37_HI
+        IQS316_Write(LTA_04_HI, ui8DataArray, 7);
+        break;
+      }
+    }
     IQS316_End_Comms_Window();
-    //
-    // 2 - Setup ATI and thresholds (settings which must be sent in specific
-    // comms window - depending which group is active)
-    //
+
     IQS316_Read(GROUP_NUM, ui8DataArray, 1);
-    ui8StartGroup = ui8DataArray[0];
-    //
-    // Enable skip conversions, so that IQS316 cycles through the the groups
-    // 0, 1, 2, 3, 4, 0, 1, ....   to allow configuring settings which must be
-    // setup while in a specific cycle.
-    //
-    ui8DataArray[0] = (SKIP_CONV | LTN_DISABLE | WDT_DISABLE);
-    IQS316_Write(PROX_SETTINGS_2, ui8DataArray, 1);
-    ui8CurrentGroup = ui8StartGroup;
-
-    do
-    {
-        switch(ui8CurrentGroup)
-        {
-            case 0:
-            {
-                // ATI C and ATI I settings
-                //
-                ui8DataArray[0] = 0x00;          // ATI_MULT1
-                ui8DataArray[1] = 0x00;          // ATI_MULT2
-                IQS316_Write(ATI_MULT1, ui8DataArray, 2);
-                //
-                // Set thresholds (in upper nibble of LTA)
-                // NOTE: this will overwrite the LTA value also, but auto-ATI
-                // will be done later, which will reseed the LTAs correctly
-                //
-                ui8DataArray[0] = PROX_THRES_8;  // LTA_04_HI
-                ui8DataArray[1] = 0x00;          // low byte - irrelevant
-                ui8DataArray[2] = PROX_THRES_8;  // LTA_15_HI
-                ui8DataArray[3] = 0x00;          // low byte - irrelevant
-                ui8DataArray[4] = PROX_THRES_8;  // LTA_26_HI
-                ui8DataArray[5] = 0x00;          // low byte - irrelevant
-                ui8DataArray[6] = PROX_THRES_8;  // LTA_37_HI
-                IQS316_Write(LTA_04_HI, ui8DataArray, 7);
-                break;
-            }
-            case 1:
-            {
-                ui8DataArray[0] = 0x00;          // ATI_MULT1
-                ui8DataArray[1] = 0x00;          // ATI_MULT2
-                IQS316_Write(ATI_MULT1, ui8DataArray, 2);
-
-                ui8DataArray[0] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_04_HI
-                ui8DataArray[1] = 0x00;          // low byte - irrelevant
-                ui8DataArray[2] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_15_HI
-                ui8DataArray[3] = 0x00;          // low byte - irrelevant
-                ui8DataArray[4] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_26_HI
-                ui8DataArray[5] = 0x00;          // low byte - irrelevant
-                ui8DataArray[6] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_37_HI
-                IQS316_Write(LTA_04_HI, ui8DataArray, 7);
-                break;
-            }
-            case 2:
-            {
-                ui8DataArray[0] = 0x00;          // ATI_MULT1
-                ui8DataArray[1] = 0x00;          // ATI_MULT2
-                IQS316_Write(ATI_MULT1, ui8DataArray, 2);
-
-                ui8DataArray[0] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_04_HI
-                ui8DataArray[1] = 0x00;          // low byte - irrelevant
-                ui8DataArray[2] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_15_HI
-                ui8DataArray[3] = 0x00;          // low byte - irrelevant
-                ui8DataArray[4] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_26_HI
-                ui8DataArray[5] = 0x00;          // low byte - irrelevant
-                ui8DataArray[6] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_37_HI
-                IQS316_Write(LTA_04_HI, ui8DataArray, 7);
-                break;
-            }
-            case 3:
-            {
-                ui8DataArray[0] = 0x00;          // ATI_MULT1
-                ui8DataArray[1] = 0x00;          // ATI_MULT2
-                IQS316_Write(ATI_MULT1, ui8DataArray, 2);
-
-                ui8DataArray[0] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_04_HI
-                ui8DataArray[1] = 0x00;          // low byte - irrelevant
-                ui8DataArray[2] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_15_HI
-                ui8DataArray[3] = 0x00;          // low byte - irrelevant
-                ui8DataArray[4] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_26_HI
-                ui8DataArray[5] = 0x00;          // low byte - irrelevant
-                ui8DataArray[6] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_37_HI
-                IQS316_Write(LTA_04_HI, ui8DataArray, 7);
-                break;
-            }
-            case 4:
-            {
-                ui8DataArray[0] = 0x00;          // ATI_MULT1
-                ui8DataArray[1] = 0x00;          // ATI_MULT2
-                IQS316_Write(ATI_MULT1, ui8DataArray, 2);
-
-                ui8DataArray[0] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_04_HI
-                ui8DataArray[1] = 0x00;          // low byte - irrelevant
-                ui8DataArray[2] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_15_HI
-                ui8DataArray[3] = 0x00;          // low byte - irrelevant
-                ui8DataArray[4] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_26_HI
-                ui8DataArray[5] = 0x00;          // low byte - irrelevant
-                ui8DataArray[6] = PROX_THRES_20 | TOUCH_THRES_3_16;  // LTA_37_HI
-                IQS316_Write(LTA_04_HI, ui8DataArray, 7);
-                break;
-            }
-        }
-        IQS316_End_Comms_Window();
-
-        IQS316_Read(GROUP_NUM, ui8DataArray, 1);
-        ui8CurrentGroup = ui8DataArray[0];
-    } while (ui8CurrentGroup != ui8StartGroup);
-    //
-    // Now Group specific settings are done, so disable the skip conversions
-    //
-    ui8DataArray[0] = (LTN_DISABLE | WDT_DISABLE);
-    IQS316_Write(PROX_SETTINGS_2, ui8DataArray, 1);
-    //
-    // Set the high/low settings for prox and touch thresholds
-    //
-    ui8DataArray[0] = (PROX_THRES_RANGE | ND);
-    IQS316_Write(UI_SETTINGS0, ui8DataArray, 1);
-    //
-    // Set ATI Target - For Prox Mode
-    //
-    ui8DataArray[0] = 0x03;
-    ui8DataArray[1] = 0x20;
-    IQS316_Write(AUTO_ATI_TARGET_HI, ui8DataArray, 2);
+    ui8CurrentGroup = ui8DataArray[0];
+  } while (ui8CurrentGroup != ui8StartGroup);
+  //
+  // Now Group specific settings are done, so disable the skip conversions
+  //
+  ui8DataArray[0] = (LTN_DISABLE | WDT_DISABLE);
+  IQS316_Write(PROX_SETTINGS_2, ui8DataArray, 1);
+  //
+  // Set the high/low settings for prox and touch thresholds
+  //
+  ui8DataArray[0] = (PROX_THRES_RANGE | ND);
+  IQS316_Write(UI_SETTINGS0, ui8DataArray, 1);
+  //
+  // Set ATI Target - For Prox Mode
+  //
+  ui8DataArray[0] = 0x03;
+  ui8DataArray[1] = 0x20;
+  IQS316_Write(AUTO_ATI_TARGET_HI, ui8DataArray, 2);
+  IQS316_End_Comms_Window();
+  //
+  // Perform automated ATI routine (to setup ATI Compensation values)
+  // NOTE: ATI_MODE already set to ProxMode, no need to configure.
+  //
+  ui8DataArray[0] = CXVSS | HALT0 | AUTO_ATI | CXDIV1;
+  IQS316_Write(PROX_SETTINGS_1, ui8DataArray, 1);
+  IQS316_End_Comms_Window();
+  //
+  // Read ATI Busy flag until it clears, then ProxMode ATI is done
+  //
+  do
+  {
+    IQS316_Read(UI_FLAGS0, ui8DataArray, 1);
     IQS316_End_Comms_Window();
-    //
-    // Perform automated ATI routine (to setup ATI Compensation values)
-    // NOTE: ATI_MODE already set to ProxMode, no need to configure.
-    //
-    ui8DataArray[0] = CXVSS | HALT0 | AUTO_ATI | CXDIV1;
-    IQS316_Write(PROX_SETTINGS_1, ui8DataArray, 1);
+ 
+  } while ((ui8DataArray[0] & ATI_BUSY) != 0);
+  //
+  // Perform ATI for Touch Mode
+  // Set ATI_MODE to Touch
+  //
+  ui8DataArray[0] = ATI_MODE | PROX_THRES_RANGE | ND;
+  IQS316_Write(UI_SETTINGS0, ui8DataArray, 1);
+  IQS316_End_Comms_Window();
+  //
+  // Set ATI Target - For Touch Mode
+  //
+  ui8DataArray[0] = 0x03;
+  ui8DataArray[1] = 0x20;
+  IQS316_Write(AUTO_ATI_TARGET_HI, ui8DataArray, 2);
+  IQS316_End_Comms_Window();
+  //
+  // Perform automated ATI routine (to setup ATI Compensation values)
+  //
+  ui8DataArray[0] = CXVSS | HALT0 | AUTO_ATI | CXDIV1;
+  IQS316_Write(PROX_SETTINGS_1, ui8DataArray, 1);
+  IQS316_End_Comms_Window();
+  //
+  // Read ATI Busy flag until it clears, then ATI is done
+  //
+  do
+  {
+    IQS316_Read(UI_FLAGS0, ui8DataArray, 1);
     IQS316_End_Comms_Window();
-    //
-    // Read ATI Busy flag until it clears, then ProxMode ATI is done
-    //
-    do
-    {
-        IQS316_Read(UI_FLAGS0, ui8DataArray, 1);
-        IQS316_End_Comms_Window();
 
-    } while ((ui8DataArray[0] & ATI_BUSY) != 0);
-    //
-    // Perform ATI for Touch Mode
-    // Set ATI_MODE to Touch
-    //
-    ui8DataArray[0] = ATI_MODE | PROX_THRES_RANGE | ND;
-    IQS316_Write(UI_SETTINGS0, ui8DataArray, 1);
-    IQS316_End_Comms_Window();
-    //
-    // Set ATI Target - For Touch Mode
-    //
-    ui8DataArray[0] = 0x03;
-    ui8DataArray[1] = 0x20;
-    IQS316_Write(AUTO_ATI_TARGET_HI, ui8DataArray, 2);
-    IQS316_End_Comms_Window();
-    //
-    // Perform automated ATI routine (to setup ATI Compensation values)
-    //
-    ui8DataArray[0] = CXVSS | HALT0 | AUTO_ATI | CXDIV1;
-    IQS316_Write(PROX_SETTINGS_1, ui8DataArray, 1);
-    IQS316_End_Comms_Window();
-    //
-    // Read ATI Busy flag until it clears, then ATI is done
-    //
-    do
-    {
-        IQS316_Read(UI_FLAGS0, ui8DataArray, 1);
-        IQS316_End_Comms_Window();
-
-    } while ((ui8DataArray[0] & ATI_BUSY) != 0);
-    //
-    // Now setup the advanced settings as required by the design, such as the
-    // following:  Low-Power, charging mode, eventMode
-    //
+  } while ((ui8DataArray[0] & ATI_BUSY) != 0);
+  //
+  // Now setup the advanced settings as required by the design, such as the
+  // following:  Low-Power, charging mode, eventMode
+  //
 }
 
 //*****************************************************************************
@@ -493,68 +441,16 @@ void IQS316_Process_Data(void)
 //*****************************************************************************
 uint8_t IQS316_Read(uint8_t ui8Address, uint8_t *ui8Data, uint8_t ui8Length)
 {
-  uint32_t I2C_TimeOut = 0x3000;
-
-   /* Read IQS316 IRDY is set */
-  while(GPIO_ReadInputDataBit(IRDY_GPIO_PORT, IRDY_PIN) == Bit_RESET)
-  {
-    if((I2C_TimeOut--) == 0) return 1;
-  }
-
-
-  /* Configure slave address, nbytes, reload, end mode and start or stop generation */
-  I2C_TransferHandling(TP_I2C, TP_SLAVE_READ_ADDRESS, 1, I2C_SoftEnd_Mode, I2C_Generate_Start_Write);
-
-  /* Wait until TXIS flag is set */
-  I2C_TimeOut = 0x3000;
-//  while(I2C_GetFlagStatus(TP_I2C, I2C_ISR_TXIS) == RESET)
+ uint32_t I2C_TimeOut = 0x2000;
+   /* Test on BUSY Flag */
+//  while(HAL_GPIO_ReadPin(TP_IRDY_GPIO_Port, TP_IRDY_Pin) == GPIO_PIN_RESET)
 //  {
-//    if((I2C_TimeOut--) == 0) return 1;
+//    if((I2C_TimeOut--) == 0)
+//      return 0;
 //  }
 
-  I2C_SendData(TP_I2C, ui8Address);
-
-  /* Wait until TC flag is set */
-  I2C_TimeOut = 0x3000;
-  while(I2C_GetFlagStatus(TP_I2C, I2C_ISR_TC) == RESET)
-  {
-    if((I2C_TimeOut--) == 0) return 2;
-  }
-
-  /* Configure slave address, nbytes, reload, end mode and start or stop generation */
-  I2C_TransferHandling(TP_I2C, TP_SLAVE_READ_ADDRESS, ui8Length, I2C_AutoEnd_Mode, I2C_Generate_Start_Read);
-
-  /* Wait until all data are received */
-  while (ui8Length)
-  {
-    /* Wait until RXNE flag is set */
-    I2C_TimeOut = 0x3000;
-    while(I2C_GetFlagStatus(TP_I2C, I2C_ISR_RXNE) == RESET)
-    {
-      if((I2C_TimeOut--) == 0) return 3;
-    }
-
-    /* Read data from RXDR */
-    *ui8Data = I2C_ReceiveData(TP_I2C);
-    /* Point to the next location where the byte read will be saved */
-    ui8Data++;
-
-    /* Decrement the read bytes counter */
-    ui8Length--;
-  }
-
-  /* Wait until STOPF flag is set */
-  I2C_TimeOut = 0x3000;
-  while(I2C_GetFlagStatus(TP_I2C, I2C_ISR_STOPF) == RESET)
-  {
-    if((I2C_TimeOut--) == 0) return 4;
-  }
-
-  /* Clear STOPF flag */
-  I2C_ClearFlag(TP_I2C, I2C_ICR_STOPCF);
-
-  /* If all operations OK */
-  return 0;
+  
+  return (uint8_t)HAL_I2C_Mem_Read(&hi2c1, TP_SLAVE_READ_ADDRESS, ui8Address, 1, ui8Data, ui8Length, 500);
 }
 
 //*****************************************************************************
@@ -579,48 +475,14 @@ uint8_t IQS316_ReadCurrentAddress(uint8_t *ui8Data, uint8_t ui8Length)
 {
  uint32_t I2C_TimeOut = 0x2000;
    /* Test on BUSY Flag */
-  while(GPIO_ReadInputDataBit(IRDY_GPIO_PORT, IRDY_PIN) == Bit_RESET)
+  while(HAL_GPIO_ReadPin(TP_IRDY_GPIO_Port, TP_IRDY_Pin) == GPIO_PIN_RESET)
   {
     if((I2C_TimeOut--) == 0)
       return 0;
   }
 
-  /* Configure slave address, nbytes, reload, end mode and start or stop generation */
-  I2C_TransferHandling(TP_I2C, TP_SLAVE_READ_ADDRESS, ui8Length, I2C_AutoEnd_Mode, I2C_Generate_Start_Read);
+  return (int)HAL_I2C_Master_Receive(&hi2c1, TP_SLAVE_READ_ADDRESS, ui8Data, ui8Length, 500);
 
-  /* Wait until all data are received */
-  while (ui8Length)
-  {
-    /* Wait until RXNE flag is set */
-    I2C_TimeOut = 0x3000;
-    while(I2C_GetFlagStatus(TP_I2C, I2C_ISR_RXNE) == RESET)
-    {
-      if((I2C_TimeOut--) == 0)
-        return 1;
-    }
-
-    /* Read data from RXDR */
-    *ui8Data = I2C_ReceiveData(TP_I2C);
-    /* Point to the next location where the byte read will be saved */
-    ui8Data++;
-
-    /* Decrement the read bytes counter */
-    ui8Length--;
-  }
-
-  /* Wait until STOPF flag is set */
-  I2C_TimeOut = 0x3000;
-  while(I2C_GetFlagStatus(TP_I2C, I2C_ISR_STOPF) == RESET) 
-  {
-    if((I2C_TimeOut--) == 0)
-      return 2;
-  }
-
-  /* Clear STOPF flag */
-  I2C_ClearFlag(TP_I2C, I2C_ICR_STOPCF);
-
-  /* If all operations OK */
-  return 0;
 }
 
 //*****************************************************************************
@@ -641,51 +503,16 @@ uint8_t IQS316_ReadCurrentAddress(uint8_t *ui8Data, uint8_t ui8Length)
 //*****************************************************************************
 uint8_t IQS316_Write(uint8_t ui8Address, uint8_t *ui8Data, uint8_t ui8Length)
 {
-  uint32_t I2C_TimeOut = 0x3000;
-
+  uint32_t I2C_TimeOut = 0x2000;
    /* Test on BUSY Flag */
-  while(GPIO_ReadInputDataBit(IRDY_GPIO_PORT, IRDY_PIN) == Bit_RESET)
+  while(HAL_GPIO_ReadPin(TP_IRDY_GPIO_Port, TP_IRDY_Pin) == GPIO_PIN_RESET)
   {
-    if((I2C_TimeOut--) == 0) return 1;
+    if((I2C_TimeOut--) == 0)
+      return 0;
   }
 
-  /* Configure slave address, nbytes, reload, end mode and start or stop generation */
-  I2C_TransferHandling(TP_I2C, TP_SLAVE_READ_ADDRESS, 1, I2C_SoftEnd_Mode, I2C_Generate_Start_Write);
-
-  /* Wait until TXIS flag is set */
-  I2C_TimeOut = 0x3000;
-  while(I2C_GetFlagStatus(TP_I2C, I2C_ISR_TXIS) == RESET)
-  {
-    if((I2C_TimeOut--) == 0) return 1;
-  }
-
-  I2C_SendData(TP_I2C, ui8Address);
-
-  /* Wait until TC flag is set */
-  I2C_TimeOut = 0x3000;
-  while(I2C_GetFlagStatus(TP_I2C, I2C_ISR_TC) == RESET)
-  {
-    if((I2C_TimeOut--) == 0) return 2;
-  }
-
-  while(ui8Length > 0)
-  {
-    /* Read data from RXDR */
-    I2C_SendData(TP_I2C, *ui8Data);
-    /* Point to the next location where the byte read will be saved */
-    ui8Data++;
-
-    /* Wait until TXNE flag is set */
-    I2C_TimeOut = 0x3000;
-    while(I2C_GetFlagStatus(TP_I2C, I2C_ISR_TC) == RESET)
-    {
-      if((I2C_TimeOut--) == 0) return 3;
-    }
-    /* Decrement the read bytes counter */
-    ui8Length--;
-  }
-
-  return 0;
+  
+  return (uint8_t)HAL_I2C_Mem_Write(&hi2c1, TP_SLAVE_READ_ADDRESS, ui8Address, 1, ui8Data, ui8Length, 100);
 }
 
 //*****************************************************************************
@@ -703,14 +530,15 @@ uint8_t IQS316_Write(uint8_t ui8Address, uint8_t *ui8Data, uint8_t ui8Length)
 //*****************************************************************************
 void IQS316_End_Comms_Window(void)
 {
-  uint16_t I2C_TimeOut = 300;
-  while(I2C_GetFlagStatus(TP_I2C, I2C_ISR_STOPF) == RESET)   
+  uint32_t I2C_TimeOut = 0x2000;
+   /* Test on BUSY Flag */
+  while(HAL_GPIO_ReadPin(TP_IRDY_GPIO_Port, TP_IRDY_Pin) != GPIO_PIN_RESET)
   {
-    if((I2C_TimeOut--) == 0)
-      break; //sEE_TIMEOUT_UserCallback();
+    if(I2C_TimeOut-- == 0)
+    {
+      printf("I2C End_Comm Timeout!\r\n");
+      break;
+    }
   }
-  
-  /* Clear STOPF flag */
-  I2C_ClearFlag(TP_I2C, I2C_ICR_STOPCF);
 }
 

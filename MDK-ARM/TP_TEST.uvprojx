@@ -10,6 +10,7 @@
       <TargetName>TP_TEST</TargetName>
       <ToolsetNumber>0x4</ToolsetNumber>
       <ToolsetName>ARM-ADS</ToolsetName>
+      <pCCUsed>5060061::V5.06 update 1 (build 61)::ARMCC</pCCUsed>
       <TargetOption>
         <TargetCommonOption>
           <Device>STM32L051C8</Device>
@@ -309,7 +310,7 @@
           </ArmAdsMisc>
           <Cads>
             <interw>1</interw>
-            <Optim>4</Optim>
+            <Optim>1</Optim>
             <oTime>0</oTime>
             <SplitLS>0</SplitLS>
             <OneElfS>1</OneElfS>
@@ -372,9 +373,6 @@
       </TargetOption>
       <Groups>
         <Group>
-          <GroupName>::CMSIS</GroupName>
-        </Group>
-        <Group>
           <GroupName>Application/MDK-ARM</GroupName>
           <Files>
             <File>
@@ -401,6 +399,16 @@
               <FileName>stm32l0xx_it.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Src/stm32l0xx_it.c</FilePath>
+            </File>
+            <File>
+              <FileName>hwcfg.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Src\hwcfg.c</FilePath>
+            </File>
+            <File>
+              <FileName>IQS316_drv.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Src\IQS316_drv.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -508,6 +516,9 @@
               <FilePath>../Src/system_stm32l0xx.c</FilePath>
             </File>
           </Files>
+        </Group>
+        <Group>
+          <GroupName>::CMSIS</GroupName>
         </Group>
       </Groups>
     </Target>

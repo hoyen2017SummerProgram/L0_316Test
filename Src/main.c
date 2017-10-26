@@ -38,6 +38,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32l0xx_hal.h"
+#include "iqs316_driver.h"
 
 /* USER CODE BEGIN Includes */
 #ifdef __GNUC__
@@ -113,6 +114,7 @@ int main(void)
   BZ_On();
   HAL_Delay(300);
   BZ_Off();
+  IQS316_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -121,7 +123,15 @@ int main(void)
   {
   /* USER CODE END WHILE */
     LED_Toggle(LED5);
-    HAL_Delay(300);
+    HAL_Delay(100);
+    //
+    // Get data from latest comms window
+    //
+    IQS316_Refresh_Data();
+    //
+    // Process this new data accordingly
+    //
+    IQS316_Process_Data();
   /* USER CODE BEGIN 3 */
 
   }
